@@ -86,7 +86,7 @@ export class IcecastServer extends EventEmitter {
 
     const mountId = head.url.substring(1);
     if (!mountId || mountId == '') throw new HttpError(400, 'You cannot mount at root');
-    const mount = new IcecastMount(socket, head.headers);
+    const mount = new IcecastMount(mountId, socket, head.headers);
     this.handleMount(mountId, mount);
 
     const continueStatus = generateHttpHead(100, 'Continue', false);
@@ -102,7 +102,7 @@ export class IcecastServer extends EventEmitter {
   private handleMount(id: string, mount: IcecastMount) {
     this.mounts.set(id, mount);
 
-    this.emit('mount', id, mount);
+    this.emit('mount', mount);
   }
 
   /**

@@ -12,10 +12,9 @@ export class IcecastMount extends EventEmitter {
 
   public lastMetadata: IAudioMetadata = null;
   public readonly audioStream = new PassThrough();
-  // private readonly parser = new IcecastParser(8192);
-  // public readonly audio = this.stream.pipe(this.parser);
 
   constructor(
+    public readonly id: string,
     public readonly stream: Socket,
     public readonly headers: any
   ) {
