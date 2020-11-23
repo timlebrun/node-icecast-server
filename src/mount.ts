@@ -1,4 +1,3 @@
-import { Socket } from 'net';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
 import { Socket } from 'net';
@@ -46,8 +45,14 @@ export class IcecastMount extends EventEmitter {
     return this.lastMetadata ? this.lastMetadata.common.title : null;
   }
 
-  public getType() {
+  public getMimeType() {
     return this.headers['content-type'];
+  }
+
+  public getType() {
+    return this.getMimeType()
+      .replace('audio/', '')
+      .replace('video/', '');
   }
 
   public getAgent() {
