@@ -19,12 +19,21 @@ yarn add icecast-server # Will not work for now
 
 ## Example
 
-```sh
-# This is awkward...
+```ts
+import { IcecastServer, IcecastMount, IMetadata } from 'icecast-server';
+
+const icecast = new IcecastServer();
+
+icecast.on('mount', (mount: IcecastMount) => {
+  mount.on('metadata', (metadata: IMetadata) => console.log(`Artist : ${metadata.common.artist}`);
+  mount.audioStream.pipe(toSomeStream);
+});
+
+icecast.listen(78543); // Some random port
 ```
 
 ## Roadmap
 
 - [ ] Push on NPM
 - [ ] Add documentation
-- [ ] Add examples
+- [x] Add examples
