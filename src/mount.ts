@@ -1,5 +1,7 @@
 import { Socket } from 'net';
 import { EventEmitter } from 'events';
+import { PassThrough } from 'stream';
+import { Socket } from 'net';
 
 import { parseStream as parseStreamMetadata } from 'music-metadata';
 import { IAudioMetadata, IMetadataEvent } from 'music-metadata/lib/type';
@@ -9,7 +11,7 @@ import { generateHttpHead } from './helpers';
 export class IcecastMount extends EventEmitter {
 
   public lastMetadata: IAudioMetadata = null;
-
+  public readonly audioStream = new PassThrough();
   // private readonly parser = new IcecastParser(8192);
   // public readonly audio = this.stream.pipe(this.parser);
 
@@ -19,12 +21,16 @@ export class IcecastMount extends EventEmitter {
   ) {
     super();
 
-    stream.on('error', e => this.onError(e));
-    stream.on('close', () => this.onClose());
-    stream.on('end', () => this.onEnd());
+    this.stream.on('error', e => this.onError(e));
+    this.stream.on('close', () => this.onClose());
+    this.stream.on('end', () => this.onEnd());
 
-    parseStreamMetadata(stream,
-      { mimeType: this.getType() },
+    const metadataPassthough = new PassThrough();
+    this.stream.pipe(metadataPassthough);
+    this.stream.pipe(this.audioStream);
+
+    parseStreamMetadata(metadataPassthough,
+      { mimeType: this.getMimeType() },
       { observer: e => this.onMetadata(e) }
     );
   }
