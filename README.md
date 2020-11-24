@@ -14,13 +14,11 @@ Metadata parsing is done using the wonderful `music-metadata` library.
 ## Usage
 
 ```sh
-yarn add icecast-server # Will not work for now
+yarn add @timlebrun/icecast-server
 ```
 
-## Example
-
 ```ts
-import { IcecastServer, IcecastMount, IMetadata } from 'icecast-server';
+import { IcecastServer, IcecastMount, IMetadata } from '@timlebrun/icecast-server';
 
 const icecast = new IcecastServer();
 
