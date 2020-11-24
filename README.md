@@ -1,7 +1,7 @@
 Node Icecast Server
 ===
 
-This package provides you with a set of class and functions to parse HTTP/Icecast from a TCP server or stream.    
+This package provides you with a set of class and functions to handle HTTP/Icecast from a TCP server or stream.    
 It acts as an actual Icecast server, takes input from a source, keeps
 connections alive, parses metadata and emits events so you can plug
 anything anywhere.
@@ -34,6 +34,10 @@ icecast.listen(78543); // Some random port
 
 ## Roadmap
 
-- [ ] Push on NPM
-- [ ] Add documentation
+- [x] Push on NPM
 - [x] Add examples
+- [ ] Add documentation
+
+## License
+
+Even though this package is under MIT license, I'd rather be notified before any commercial use.

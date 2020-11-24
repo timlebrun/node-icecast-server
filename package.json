@@ -1,12 +1,17 @@
 {
-  "name": "node-icecast-server",
-  "version": "1.0.0",
-  "main": "dist/server.js",
+  "name": "@timlebrun/icecast-server",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "author": "Tim <me@timlebrun.fr>",
   "license": "MIT",
+  "repository": {
+    "type" : "git",
+    "url" : "https://github.com/timlebrun/node-icecast-server.git"
+  },
   "scripts": {
-    "init": "tsc --init",
     "test": "ts-node ./src/test.ts",
+    "prepublish": "yarn run build",
     "build": "tsc"
   },
   "devDependencies": {
