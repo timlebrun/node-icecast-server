@@ -1,9 +1,7 @@
 import ffmpeg from 'fluent-ffmpeg';
 import { resolve } from 'path';
 
-import { IcecastServer } from './server';
-import { IcecastMount } from './mount';
-import { IMetadata } from './interfaces';
+import { IcecastServer, IIcecastServerMountEvent, IIcecastMountAudioMetadata } from '../src';
 
 const dataPath = resolve(__dirname, '..', 'data');
 
@@ -22,10 +20,11 @@ const icecast = new IcecastServer();
 icecast.on('connection', () => console.log(`Received Connection !`));
 icecast.on('head', (head) => console.log(`Received a proper HTTP head `, head));
 icecast.on('error', (e) => console.error('oh no', e));
-icecast.on('mount', (mount: IcecastMount) => {
-	console.log(`Received mount ${mount.id} !`);
+icecast.on('mount', (event: IIcecastServerMountEvent) => {
+	const mount = event.mount;
+	console.log(`Received mount ${event.id} !`);
 
-	mount.on('metadata', (metadata: IMetadata) =>
+	mount.on('metadata', (metadata: IIcecastMountAudioMetadata) =>
 		console.log('metadata updated', metadata.common.artist),
 	);
 	mount.on('end', () => console.log('mount ended !'));
@@ -34,8 +33,8 @@ icecast.on('mount', (mount: IcecastMount) => {
 	const encoder = baseEncoder
 		.clone()
 		.addInput(mount.audioStream) // FFmpeg auto detects audio format
-		.addOutput(`${dataPath}/${mount.id}.m3u8`)
-		.outputOption(`-hls_segment_filename ${dataPath}/audio_${mount.id}_%03d.ts`);
+		.addOutput(`${dataPath}/${event.id}.m3u8`)
+		.outputOption(`-hls_segment_filename ${dataPath}/audio_${event.id}_%03d.ts`);
 
 	encoder
 		.on('start', () => console.log('encoding started !'))

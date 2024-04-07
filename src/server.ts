@@ -1,13 +1,15 @@
 import { Socket, Server as TcpServer } from 'net';
-// @ts-ignore
-import parseHttpHead from 'http-headers';
+import { default as parseHttpHead, RequestData as ParsedRequestHead } from 'http-headers';
 import { EventEmitter } from 'events';
 
-import { generateHttpHead, parseBasicAuthenticationHeader } from './helpers';
-import { IAuthenticator } from './interfaces';
 import { IcecastMount } from './mount';
-import { HttpError } from './error';
 
+/**
+ * Icecast Server class
+ *
+ * Handles the (manual) parsing of incoming TCP connections
+ * and forwarding to Icecast "mounts"
+ */
 export class IcecastServer extends EventEmitter {
 	/**
 	 * Underlying TCP server instance
@@ -25,7 +27,7 @@ export class IcecastServer extends EventEmitter {
 	/**
 	 * The authenticator callback
 	 */
-	private authenticator: IAuthenticator = () => true;
+	private authenticator: IIcecastServerAuthenticator = () => true;
 
 	constructor(public readonly options: any = {}) {
 		super();
@@ -36,7 +38,7 @@ export class IcecastServer extends EventEmitter {
 	 *
 	 * @param callback
 	 */
-	public setAuthenticator(callback: IAuthenticator) {
+	public setAuthenticator(callback: IIcecastServerAuthenticator) {
 		this.authenticator = callback;
 
 		return this;
@@ -50,19 +52,18 @@ export class IcecastServer extends EventEmitter {
 	public handleConnection(socket: Socket) {
 		socket.once('data', (maybeHeaderData) => {
 			try {
-				const head = parseHttpHead(maybeHeaderData);
+				const request = IcecastServerRequest.fromConnection(maybeHeaderData, socket);
 
-				if (!head) throw new HttpError(400, 'Wtf');
-				this.emit('head', head);
+				// on IcecastServerHttpError, close socket
 
-				this.handleRequest(head, socket);
+				this.handleRequest(request);
 			} catch (error) {
 				this.emit('error', error);
 
 				const payload =
-					error instanceof HttpError
-						? generateHttpHead(error.code, error.message)
-						: generateHttpHead(500, 'Unknown error');
+					error instanceof IcecastServerHttpError
+						? IcecastServer.generateHttpResponseHead(error.code, error.message)
+						: IcecastServer.generateHttpResponseHead(500, 'Unknown error');
 
 				return socket.end(payload);
 			}
@@ -75,27 +76,25 @@ export class IcecastServer extends EventEmitter {
 	 * @param head
 	 * @param socket
 	 */
-	public handleRequest(head: any, socket: Socket) {
-		if (head.method != 'PUT') throw new HttpError(405, 'Invalid method');
-		if (!head.headers.authorization) throw new HttpError(401, 'You need to authenticate');
+	public handleRequest(request: IcecastServerRequest) {
+		if (request.head.method !== 'PUT') throw new IcecastServerHttpError(405, 'Invalid method');
 
-		const authorization = parseBasicAuthenticationHeader(head.headers.authorization);
-		if (!authorization) throw new HttpError(403, 'Authorization failed');
+		const authenticationCredentials = request.parseBasicAuthenticationHeader();
+		if (!authenticationCredentials)
+			throw new IcecastServerHttpError(401, 'You need to authenticate');
 
-		const authenticationIsOk = this.authenticator(
-			authorization.username,
-			authorization.password,
-			head,
-		);
-		if (!authenticationIsOk) throw new HttpError(403, 'Forbidden');
+		const authenticationContext = this.authenticator(authenticationCredentials, request);
+		if (!authenticationContext) throw new IcecastServerHttpError(403, 'Forbidden');
 
-		const mountId = head.url.substring(1);
-		if (!mountId || mountId == '') throw new HttpError(400, 'You cannot mount at root');
-		const mount = new IcecastMount(mountId, socket, head.headers);
+		const mountId = request.head.url.substring(1);
+		if (!mountId || mountId == '')
+			throw new IcecastServerHttpError(400, 'You cannot mount at root');
+
+		const mount = new IcecastMount(request, authenticationContext);
 		this.handleMount(mountId, mount);
 
-		const continueStatus = generateHttpHead(100, 'Continue', false);
-		socket.write(continueStatus + '\n');
+		const continueStatus = IcecastServer.generateHttpResponseHead(100, 'Continue', false);
+		request.socket.write(continueStatus + '\n');
 	}
 
 	/**
@@ -107,7 +106,8 @@ export class IcecastServer extends EventEmitter {
 	private handleMount(id: string, mount: IcecastMount) {
 		this.mounts.set(id, mount);
 
-		this.emit('mount', mount);
+		const mountEvent: IIcecastServerMountEvent = { id, mount };
+		this.emit('mount', mountEvent);
 	}
 
 	/**
@@ -134,4 +134,75 @@ export class IcecastServer extends EventEmitter {
 
 		this._server.listen(port, () => console.log('listenign'));
 	}
+
+	public static generateHttpResponseHead(
+		statusCode: number,
+		statusMessage: string,
+		end = true,
+	) {
+		return `HTTP/1.1 ${statusCode} ${statusMessage}\n${end ? '\n' : ''}`;
+	}
+}
+
+export class IcecastServerRequest {
+	public constructor(
+		public readonly socket: Socket,
+		public readonly head: ParsedRequestHead,
+	) {}
+
+	public parseBasicAuthenticationHeader(): IIcecastServerRequestAuthenticationCredentials | null {
+		const authorizationHeader = this.head.headers['authorization'];
+		if (!authorizationHeader) return null;
+
+		// @todo maybe add checks ?
+		const payload = authorizationHeader.replace('Basic ', '');
+		const decoded = Buffer.from(payload, 'base64').toString('utf-8');
+		const [username, password] = decoded.split(':');
+
+		return { username, password };
+	}
+
+	public getHeader(key: string) {
+		return this.head.headers[key] ?? null;
+	}
+
+	/**
+	 * Builds a request instance from an incoming connection
+	 *
+	 * Requires the connection socket and first received data (to be parsed)
+	 *
+	 * @param firstData
+	 * @param socket
+	 * @returns an instance of the Request
+	 */
+	public static fromConnection(firstData: Buffer, socket: Socket) {
+		const head = parseHttpHead(firstData) as ParsedRequestHead;
+		if (!head) throw new IcecastServerHttpError(400, 'Wtf');
+
+		return new this(socket, head);
+	}
+}
+
+export class IcecastServerHttpError extends Error {
+	constructor(
+		public readonly code: number,
+		public readonly message: string,
+	) {
+		super();
+	}
+}
+
+export interface IIcecastServerRequestAuthenticationCredentials {
+	username: string;
+	password: string;
+}
+
+export type IIcecastServerAuthenticator = (
+	credentials: IIcecastServerRequestAuthenticationCredentials,
+	request: IcecastServerRequest,
+) => boolean | any;
+
+export interface IIcecastServerMountEvent {
+	id: string;
+	mount: IcecastMount;
 }
