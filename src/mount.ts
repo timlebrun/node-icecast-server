@@ -1,36 +1,38 @@
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
-import { Socket } from 'net';
 
 import { parseStream as parseStreamMetadata } from 'music-metadata';
 import { IAudioMetadata, IMetadataEvent } from 'music-metadata/lib/type';
 
-import { generateHttpHead } from './helpers';
+import { IcecastServer, IcecastServerRequest } from './server';
 
 export class IcecastMount extends EventEmitter {
 	public lastMetadata: IAudioMetadata = null;
 	public readonly audioStream = new PassThrough();
 
 	constructor(
-		public readonly id: string,
-		public readonly stream: Socket,
-		public readonly headers: any,
+		public readonly request: IcecastServerRequest,
+		public readonly authenticationContext: any,
 	) {
 		super();
 
-		this.stream.on('error', (e) => this.onError(e));
-		this.stream.on('close', () => this.onClose());
-		this.stream.on('end', () => this.onEnd());
+		this.request.socket.on('error', (e) => this.onError(e));
+		this.request.socket.on('close', () => this.onClose());
+		this.request.socket.on('end', () => this.onEnd());
 
 		const metadataPassthough = new PassThrough();
-		this.stream.pipe(metadataPassthough);
-		this.stream.pipe(this.audioStream);
+		this.request.socket.pipe(metadataPassthough);
+		this.request.socket.pipe(this.audioStream);
 
 		parseStreamMetadata(
 			metadataPassthough,
 			{ mimeType: this.getMimeType() },
 			{ observer: (e) => this.onMetadata(e) },
 		);
+	}
+
+	public getStatus() {
+		return this.audioStream.readableEnded;
 	}
 
 	public getCurrentArtist() {
@@ -46,7 +48,7 @@ export class IcecastMount extends EventEmitter {
 	}
 
 	public getMimeType() {
-		return this.headers['content-type'];
+		return this.request.getHeader('content-type');
 	}
 
 	public getType() {
@@ -54,11 +56,11 @@ export class IcecastMount extends EventEmitter {
 	}
 
 	public getAgent() {
-		return this.headers['user-agent'];
+		return this.request.getHeader('user-agent');
 	}
 
 	public isPublic() {
-		return this.headers['ice-public'];
+		return this.request.getHeader('ice-public');
 	}
 
 	private onEnd() {
@@ -67,7 +69,7 @@ export class IcecastMount extends EventEmitter {
 	}
 
 	private onError(error: Error) {
-		this.stream.end(generateHttpHead(500, 'Oh no bye...'));
+		this.request.socket.end(IcecastServer.generateHttpResponseHead(500, 'Oh no bye...'));
 
 		this.emit('error', error);
 	}
@@ -84,7 +86,9 @@ export class IcecastMount extends EventEmitter {
 	}
 
 	public close() {
-		this.stream.end(generateHttpHead(200, 'Thx bye <3'));
+		this.request.socket.end(IcecastServer.generateHttpResponseHead(200, 'Thx bye <3'));
 		// do stuff ?
 	}
 }
+
+export type IIcecastMountAudioMetadata = IAudioMetadata;

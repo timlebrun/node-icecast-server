@@ -19,6 +19,13 @@
   dependencies:
     "@types/node" "*"
 
+"@types/http-headers@^3.0.3":
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/@types/http-headers/-/http-headers-3.0.3.tgz#a1ccb0f7bd93fccbf859690373371e5e16737901"
+  integrity sha512-o+B7ekZDJXzfZ+Zcp3V7v6wKFe1mrE6bpfUc55gDGjWZY6Iui9TCWCBribhW4v/ArqXzMR5akVvC7BHPNvL1ow==
+  dependencies:
+    "@types/node" "*"
+
 "@types/node@*", "@types/node@^14.14.8":
   version "14.14.8"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.8.tgz#2127bd81949a95c8b7d3240f3254352d72563aec"
